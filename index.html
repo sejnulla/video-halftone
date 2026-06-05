@@ -667,8 +667,14 @@ document.getElementById('btn-export').addEventListener('click', () => {
   a.click();
 });
 
+// --- Default video ---
+fetch('default.mp4').then(r => r.blob()).then(blob => {
+  loadVideo(new File([blob], 'default.mp4', { type: 'video/mp4' }));
+}).catch(() => {});
+
 // --- Presets ---
 const PRESET_KEY = 'vht_presets';
+const DEFAULT_PRESETS = [{"name":"Preset 1","cfg":{"interval":124,"fade":2900,"maxFrames":46,"gridSize":18,"dotFill":0.96,"fillCells":false,"brightness":1.1,"contrast":1.55,"shape":"square","palIdx":0,"cellMode":"solid","bgColor":"#706b1d"}},{"name":"Preset 2","cfg":{"interval":180,"fade":1850,"maxFrames":21,"gridSize":8,"dotFill":0.74,"fillCells":false,"brightness":1.9,"contrast":1.2,"shape":"diamond","palIdx":1,"cellMode":"solid","bgColor":"#084615"}},{"name":"Preset 3","cfg":{"interval":52,"fade":2950,"maxFrames":6,"gridSize":32,"dotFill":0.35,"fillCells":false,"brightness":1.55,"contrast":0.9,"shape":"square","palIdx":2,"cellMode":"gradient","bgColor":"#bea294"}}];
 
 function serializeSettings() {
   return {
@@ -732,7 +738,10 @@ function applySettings(cfg) {
   }
 }
 
-function loadPresets() { return JSON.parse(localStorage.getItem(PRESET_KEY) || '[]'); }
+function loadPresets() {
+  const stored = localStorage.getItem(PRESET_KEY);
+  return stored ? JSON.parse(stored) : JSON.parse(JSON.stringify(DEFAULT_PRESETS));
+}
 function savePresets(list) { localStorage.setItem(PRESET_KEY, JSON.stringify(list)); }
 
 function paletteSwatch(palIdx) {
@@ -820,7 +829,7 @@ function randomisePalette() {
   });
 }
 
-document.getElementById('btn-rand-all').addEventListener('click',     () => { randomiseHalftone(); randomiseTiming(); randomisePalette(); });
+document.getElementById('btn-rand-all').addEventListener('click',     () => { randomiseHalftone(); randomiseTiming(); applySettings({ palIdx: Math.floor(Math.random() * PALETTES.length) }); });
 document.getElementById('btn-rand-halftone').addEventListener('click', randomiseHalftone);
 document.getElementById('btn-rand-timing').addEventListener('click',   randomiseTiming);
 document.getElementById('btn-rand-palette').addEventListener('click',  randomisePalette);
