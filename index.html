@@ -391,7 +391,7 @@
 
   <div id="seq-section" style="display:none;">
     <div class="seq-row" id="seq-slots"></div>
-    <div class="seq-hint">Tap a slot to cycle palette. Frames repeat the sequence.</div>
+    <div class="seq-hint">Each frame is born with the first color and shifts through the sequence as it fades. Tap a slot to cycle its palette.</div>
   </div>
 
   <h2>Background</h2>
@@ -580,10 +580,23 @@ function render(now) {
     const cols = Math.ceil(drawW / gs);
     const rows = Math.ceil(drawH / gs);
 
-    const palIdx = S.trailMode === 'sequence'
-      ? S.trailSequence[fi % S.trailSequence.length]
-      : S.palIdx;
-    const pal = PALETTES[palIdx];
+    let pal;
+    if (S.trailMode === 'sequence' && S.trailSequence.length > 0) {
+      const t = age / S.fade; // 0 = just born, 1 = fully faded
+      const seq = S.trailSequence;
+      if (seq.length === 1) {
+        pal = PALETTES[seq[0]];
+      } else {
+        const seqPos = t * (seq.length - 1);
+        const idx = Math.min(Math.floor(seqPos), seq.length - 2);
+        const frac = seqPos - idx;
+        const pA = PALETTES[seq[idx]];
+        const pB = PALETTES[seq[idx + 1]];
+        pal = { a: lerpC(pA.a, pB.a, frac), b: lerpC(pA.b, pB.b, frac) };
+      }
+    } else {
+      pal = PALETTES[S.palIdx];
+    }
 
     ctx.save();
     ctx.globalAlpha = alpha;
