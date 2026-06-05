@@ -587,7 +587,11 @@ function render(now) {
       if (seq.length === 1) {
         pal = PALETTES[seq[0]];
       } else {
-        const seqPos = t * (seq.length - 1);
+        // Each color gets an equal share of the fade. Last color is reached
+        // at t = (n-1)/n so it has a full 1/n window while still visible.
+        const maxT = (seq.length - 1) / seq.length;
+        const colorT = Math.min(t / maxT, 1.0);
+        const seqPos = colorT * (seq.length - 1);
         const idx = Math.min(Math.floor(seqPos), seq.length - 2);
         const frac = seqPos - idx;
         const pA = PALETTES[seq[idx]];
