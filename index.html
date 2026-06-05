@@ -139,6 +139,33 @@
   /* Cell mode */
   .cell-mode-seg { margin-bottom: 8px; }
 
+  /* Trail sequence */
+  .seq-row {
+    display: flex; gap: 5px; align-items: center;
+    margin-bottom: 8px; flex-wrap: wrap;
+  }
+  .seq-slot {
+    width: 36px; height: 36px; border-radius: 8px;
+    cursor: pointer; border: 1px solid rgba(255,255,255,0.12);
+    transition: all 0.15s; position: relative; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .seq-slot:hover { border-color: rgba(255,255,255,0.35); transform: scale(1.08); }
+  .seq-slot .seq-num {
+    font-size: 8px; font-weight: 600; color: rgba(255,255,255,0.5);
+    letter-spacing: 0.04em; pointer-events: none;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+  }
+  .seq-add, .seq-remove {
+    width: 28px; height: 28px; border-radius: 6px; border: 1px solid var(--panel-border);
+    background: none; color: var(--ink-faint); cursor: pointer; font-size: 16px;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s; flex-shrink: 0; line-height: 1;
+  }
+  .seq-add:hover { color: var(--ink); border-color: var(--ink-faint); }
+  .seq-remove:hover { color: rgba(255,100,100,0.9); border-color: rgba(255,80,80,0.5); }
+  .seq-hint { font-size: 9px; color: var(--ink-faint); letter-spacing: 0.06em; line-height: 1.5; margin-bottom: 10px; }
+
   /* Upload zone */
   .upload-zone {
     border: 1px dashed var(--panel-border); border-radius: 14px;
@@ -354,6 +381,19 @@
     Solid: sample gradient at brightness.<br>Gradient: each cell contains full gradient.
   </div>
 
+  <div class="ctrl" style="margin-bottom:6px;">
+    <label>Trail color mode</label>
+    <div class="seg" data-ctrl="trailmode">
+      <button data-val="single" class="active">Single</button>
+      <button data-val="sequence">Sequence</button>
+    </div>
+  </div>
+
+  <div id="seq-section" style="display:none;">
+    <div class="seq-row" id="seq-slots"></div>
+    <div class="seq-hint">Tap a slot to cycle palette. Frames repeat the sequence.</div>
+  </div>
+
   <h2>Background</h2>
   <div class="bg-row">
     <label>Canvas color</label>
@@ -416,7 +456,9 @@ const S = {
   contrast: 1.0,
   shape: 'circle',
   palIdx: 0,
-  cellMode: 'solid', // 'solid' | 'gradient'
+  cellMode: 'solid',
+  trailMode: 'single', // 'single' | 'sequence'
+  trailSequence: [0, 1, 2, 3],
   bgColor: '#0a0a0b',
 };
 
@@ -515,7 +557,6 @@ function render(now) {
 
   const gs = S.gridSize;
   const maxR = gs * 0.5 * S.dotFill;
-  const pal = PALETTES[S.palIdx];
 
   // Prune expired frames first
   const cutoff = now - S.fade;
@@ -538,6 +579,11 @@ function render(now) {
     // How many grid cells span the drawn image
     const cols = Math.ceil(drawW / gs);
     const rows = Math.ceil(drawH / gs);
+
+    const palIdx = S.trailMode === 'sequence'
+      ? S.trailSequence[fi % S.trailSequence.length]
+      : S.palIdx;
+    const pal = PALETTES[palIdx];
 
     ctx.save();
     ctx.globalAlpha = alpha;
@@ -645,6 +691,55 @@ function bindSeg(ctrlName, key) {
 bindSeg('shape', 'shape');
 bindSeg('cellmode', 'cellMode');
 
+// Trail mode + sequence
+bindSeg('trailmode', 'trailMode');
+document.querySelector('[data-ctrl="trailmode"]').addEventListener('click', e => {
+  const btn = e.target.closest('button'); if (!btn) return;
+  document.getElementById('seq-section').style.display = btn.dataset.val === 'sequence' ? 'block' : 'none';
+});
+
+function palGradientCSS(idx) {
+  const p = PALETTES[idx];
+  return `linear-gradient(135deg,rgb(${p.a.join()}),rgb(${p.b.join()}))`;
+}
+
+function renderSeqSlots() {
+  const container = document.getElementById('seq-slots');
+  container.innerHTML = '';
+  S.trailSequence.forEach((palIdx, i) => {
+    const slot = document.createElement('div');
+    slot.className = 'seq-slot';
+    slot.style.background = palGradientCSS(palIdx);
+    slot.title = `Frame ${i + 1}: ${PALETTES[palIdx].name} — click to cycle`;
+    slot.innerHTML = `<span class="seq-num">${i + 1}</span>`;
+    slot.addEventListener('click', () => {
+      S.trailSequence[i] = (S.trailSequence[i] + 1) % PALETTES.length;
+      renderSeqSlots();
+    });
+    container.appendChild(slot);
+  });
+
+  // Remove button
+  if (S.trailSequence.length > 1) {
+    const rem = document.createElement('button');
+    rem.className = 'seq-remove'; rem.title = 'Remove last slot'; rem.textContent = '−';
+    rem.addEventListener('click', () => { S.trailSequence.pop(); renderSeqSlots(); });
+    container.appendChild(rem);
+  }
+
+  // Add button
+  if (S.trailSequence.length < 12) {
+    const add = document.createElement('button');
+    add.className = 'seq-add'; add.title = 'Add slot'; add.textContent = '+';
+    add.addEventListener('click', () => {
+      S.trailSequence.push((S.trailSequence[S.trailSequence.length - 1] + 1) % PALETTES.length);
+      renderSeqSlots();
+    });
+    container.appendChild(add);
+  }
+}
+renderSeqSlots();
+
 // Palette picker
 document.getElementById('pal-grid').addEventListener('click', e => {
   const card = e.target.closest('[data-pal]'); if (!card) return;
@@ -687,9 +782,11 @@ function serializeSettings() {
     brightness: S.brightness,
     contrast:   S.contrast,
     shape:      S.shape,
-    palIdx:     S.palIdx,
-    cellMode:   S.cellMode,
-    bgColor:    S.bgColor,
+    palIdx:        S.palIdx,
+    cellMode:      S.cellMode,
+    trailMode:     S.trailMode,
+    trailSequence: [...S.trailSequence],
+    bgColor:       S.bgColor,
   };
 }
 
@@ -724,6 +821,17 @@ function applySettings(cfg) {
     document.querySelectorAll('[data-ctrl="cellmode"] button').forEach(b => {
       b.classList.toggle('active', b.dataset.val === cfg.cellMode);
     });
+  }
+  if (cfg.trailMode) {
+    S.trailMode = cfg.trailMode;
+    document.querySelectorAll('[data-ctrl="trailmode"] button').forEach(b => {
+      b.classList.toggle('active', b.dataset.val === cfg.trailMode);
+    });
+    document.getElementById('seq-section').style.display = cfg.trailMode === 'sequence' ? 'block' : 'none';
+  }
+  if (cfg.trailSequence) {
+    S.trailSequence = [...cfg.trailSequence];
+    renderSeqSlots();
   }
   if (cfg.palIdx !== undefined) {
     S.palIdx = cfg.palIdx;
